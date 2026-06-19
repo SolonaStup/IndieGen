@@ -22,6 +22,18 @@ pay per generation, no subscriptions.
 Exports: PNG spritesheets, per-frame PNGs, JSON manifests, GLB/FBX/OBJ — drop
 straight into your engine.
 
+## Examples
+
+Real assets generated in the studio:
+
+| Animated sprites | Autotile tilesets |
+| --- | --- |
+| ![Sprite generation](docs/screenshots/mode-sprite.png) | ![Tileset generation](docs/screenshots/mode-tiles.png) |
+
+| Parallax backgrounds | Prop libraries |
+| --- | --- |
+| ![Parallax generation](docs/screenshots/mode-parallax.png) | ![Props generation](docs/screenshots/mode-props.png) |
+
 ## Pricing — pay per generation
 
 Each generation has a fixed USD price, paid directly from your wallet in

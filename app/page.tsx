@@ -10,7 +10,7 @@ import InteractiveWaves from '@/app/components/ui/InteractiveWaves'
  * only scroll-reveal + cursor tracking use a tiny bit of JS.
  * ------------------------------------------------------------------ */
 
-const GITHUB_URL = 'https://github.com/SolonaStup/IndieGen'
+const GITHUB_URL = 'https://github.com/KURTGUETTO/IndieGen'
 const TWITTER_URL = 'https://x.com/IndieGenSol'
 
 function SocialLinks({ size = 18 }: { size?: number }) {
