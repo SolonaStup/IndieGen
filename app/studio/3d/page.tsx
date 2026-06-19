@@ -29,7 +29,7 @@ const PRICE_LABEL = `$${MODEL3D_USD.MIN}–$${MODEL3D_USD.MAX}`
 export default function Model3DStudio() {
   const { open: openWallet } = useAppKit()
   const { isConnected, address } = useAppKitAccount()
-  const { authed, tokenLive, pay } = useCredits()
+  const { authed, pay } = useCredits()
 
   const [prompt, setPrompt] = useState('')
   const [artStyle, setArtStyle] = useState<'realistic' | 'sculpture'>('realistic')
@@ -69,18 +69,14 @@ export default function Model3DStudio() {
     setLoading(true)
     setModel(null)
 
-    // Pay per generation once the token is live (no-op while free).
+    // pay() checks /api/price fresh: returns null when free, txSignature when paid.
     let txSignature: string | null = null
-    if (tokenLive) {
-      try {
-        setError('Confirm the payment in your wallet…')
-        txSignature = await pay(estimate3DUsd(prompt.trim()))
-        setError(null)
-      } catch (e) {
-        setLoading(false)
-        setError(e instanceof Error ? e.message : 'Payment was cancelled.')
-        return
-      }
+    try {
+      txSignature = await pay(estimate3DUsd(prompt.trim()))
+    } catch (e) {
+      setLoading(false)
+      setError(e instanceof Error ? e.message : 'Payment was cancelled.')
+      return
     }
 
     startTimer()

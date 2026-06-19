@@ -315,16 +315,15 @@ export default function Home() {
       openWallet()
       return false
     }
+    // Always ask pay() — it checks /api/price fresh and returns null when
+    // generation is still free, or the payment txSignature when the token is
+    // live. (Don't gate on the client `tokenLive` flag — it can lag.)
     payTxRef.current = null
-    if (tokenLive) {
-      try {
-        setError('Confirm the payment in your wallet…')
-        payTxRef.current = await pay(usd)
-        setError(null)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Payment was cancelled.')
-        return false
-      }
+    try {
+      payTxRef.current = await pay(usd)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Payment was cancelled.')
+      return false
     }
     return true
   }
@@ -2404,6 +2403,7 @@ export default function Home() {
         artStyle: artStyle !== 'none' ? artStyle : undefined,
         apiKey: apiKey || undefined,
         model: selectedModel,
+        txSignature: payTxRef.current,
         spriteAnchor: true,
         spriteBodyPlan,
         sceneBrief: sceneBrief.trim() ? sceneBrief.trim() : undefined,
@@ -2465,6 +2465,7 @@ export default function Home() {
         artStyle: artStyle !== 'none' ? artStyle : undefined,
         apiKey: apiKey || undefined,
         model: selectedModel,
+        txSignature: payTxRef.current,
         spriteSheet: true,
         spriteAnim,
         spriteBodyPlan,
