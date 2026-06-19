@@ -285,7 +285,7 @@ export const Outro: React.FC<{ dur: number }> = ({ dur }) => (
       </div>
     </Reveal>
     <Reveal delay={36}>
-      <div style={{ marginTop: 26, fontSize: 26, color: C.muted, letterSpacing: '0.04em' }}>indiegen.studio</div>
+      <div style={{ marginTop: 26, fontSize: 26, color: C.muted, letterSpacing: '0.04em' }}>indiegen.net</div>
     </Reveal>
   </Stage>
 )

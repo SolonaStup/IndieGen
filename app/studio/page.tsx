@@ -70,7 +70,7 @@ export default function Home() {
 
   // Mode: which top-level tool the user is in. Persisted to localStorage so a
   // game designer doesn't have to re-pick parallax every visit.
-  const [mode, setModeState] = useState<Mode>('extender')
+  const [mode, setModeState] = useState<Mode>('sprite')
 
   // Parallax-specific state. Target width is the "auto-extend until we hit
   // this width" goal; autoExtending tracks the loop; the stop ref lets the
@@ -201,13 +201,15 @@ export default function Home() {
   // anywhere). Optional-mode is used when editing an existing key from settings.
   const [apiKeyRequired, setApiKeyRequired] = useState(false)
 
-  // Wallet + credits (Reown AppKit). walletAddress is threaded into every
-  // generation fetch so the server can meter credits per call.
+  // Wallet auth (Reown AppKit). Generation is free during beta; paid
+  // per-generation directly from the wallet once the token launches.
   const { open: openWallet } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
-  const { credits, refresh: refreshCredits, buyFaucet } = useCredits()
+  const { authed, tokenLive, pay } = useCredits()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  /** txSignature of the payment funding the current generation action. */
+  const payTxRef = useRef<string | null>(null)
 
   // Hydrate from localStorage on mount, and decide whether to show the modal.
   useEffect(() => {
@@ -221,7 +223,6 @@ export default function Home() {
       }
       if (
         savedMode === 'parallax' ||
-        savedMode === 'extender' ||
         savedMode === 'tile' ||
         savedMode === 'sprite' ||
         savedMode === 'props'
@@ -298,22 +299,32 @@ export default function Home() {
     setShowApiKeyModal(true)
   }
 
-  const ensureCanGenerate = (): boolean => {
-    // If no key and we're in required mode, re-open the modal instead of
-    // making a request that would fail with 401.
+  /**
+   * Gate before any generation: ensure a wallet is connected and — once the
+   * token is live — take the per-generation payment. Stores the payment
+   * txSignature in payTxRef for the request bodies to read. `usd` is a generous
+   * bundle that covers the action's internal calls.
+   */
+  const ensureCanGenerate = async (usd = 0.25): Promise<boolean> => {
     if (!apiKey && apiKeyRequired) {
       setShowApiKeyModal(true)
       return false
     }
-    // Credits are metered against a connected wallet.
     if (!isConnected || !walletAddress) {
       setError('Connect a wallet to generate.')
       openWallet()
       return false
     }
-    if (credits !== null && credits <= 0) {
-      setError('Out of credits — top up to keep generating.')
-      return false
+    payTxRef.current = null
+    if (tokenLive) {
+      try {
+        setError('Confirm the payment in your wallet…')
+        payTxRef.current = await pay(usd)
+        setError(null)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Payment was cancelled.')
+        return false
+      }
     }
     return true
   }
@@ -512,16 +523,12 @@ export default function Home() {
           // each tile has a strict role + magenta layout that an arbitrary
           // upload can't match. Surface a clear hint instead of silently
           // ignoring the dropped file.
-          setError(
-            'Tile-set mode generates from prompts only. Switch to Extender mode to outpaint an uploaded image.'
-          )
+          setError('Tile-set mode generates from prompts only — describe the tiles you want.')
         } else if (mode === 'sprite') {
           // Sprite mode is also generate-only — animation sheets need
           // strict 4×2 keyframe staging on a magenta key that an arbitrary
           // upload can't match.
-          setError(
-            'Sprite mode generates from prompts only. Switch to Extender mode to outpaint an uploaded image.'
-          )
+          setError('Sprite mode generates from prompts only — describe the character you want.')
         } else {
           loadDataUrlAsImage(dataUrl, file.name)
         }
@@ -551,6 +558,7 @@ export default function Home() {
             artStyle: artStyle !== 'none' ? artStyle : undefined,
             apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
             model: selectedModel,
           }),
         })
@@ -576,7 +584,7 @@ export default function Home() {
       setError('Please describe the image you want to generate.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setGenerating(true)
     setError(null)
     try {
@@ -592,6 +600,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           model: selectedModel,
           layerRole,
           sceneBrief:
@@ -670,6 +679,7 @@ export default function Home() {
             artStyle: style !== 'none' ? style : undefined,
             apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
             model: selectedModel,
             layerRole,
             sceneBrief:
@@ -821,7 +831,7 @@ export default function Home() {
 
   const handleExtend = async (direction: Direction) => {
     if (loading) return
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     const { sourceImage, layerRole } = resolveExtendSource()
     if (!sourceImage) return
     setError(null)
@@ -856,7 +866,7 @@ export default function Home() {
 
   const handleRegenerate = async () => {
     if (!lastExtensionParams || !imageBeforeExtension || loading) return
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     setLoading(true)
     setProgressMsg(`Regenerating ${lastExtensionParams.direction}…`)
@@ -1127,6 +1137,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           model: selectedModel,
           tileMode: true,
           tileRole: role,
@@ -1327,6 +1338,7 @@ export default function Home() {
           sceneBrief: sceneBrief.trim() ? sceneBrief.trim() : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           previewImage,
           sheetImage: sheetImage || undefined,
         }),
@@ -1346,7 +1358,7 @@ export default function Home() {
       setError('Describe the material you want — e.g. mossy stone floor.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     tileStopRef.current = false
     setTileSetGenerating(true)
@@ -1384,6 +1396,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           model: selectedModel,
           tileSheet: true,
           tileGuideImage,
@@ -1573,7 +1586,7 @@ export default function Home() {
       setError('Describe the material you want before regenerating tiles.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     setTileSetGenerating(true)
     try {
@@ -1948,6 +1961,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           count,
           existing: propCategoriesOf(items),
         }),
@@ -1998,7 +2012,7 @@ export default function Home() {
     const names = resolvePropNames(populated)
     return {
       type: 'prop-atlas',
-      generator: 'AI Image Extender — Props',
+      generator: 'INDIEGEN — Props',
       prompt: propPrompt.trim() || null,
       sceneBrief: sceneBrief.trim() || null,
       sheet: { width: layout.width, height: layout.height },
@@ -2027,7 +2041,7 @@ export default function Home() {
       setError('Describe the biome / palette — e.g. lush forest decorations.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     propStopRef.current = false
     setPropSetGenerating(true)
@@ -2081,6 +2095,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           model: selectedModel,
           propSheet: true,
           propCols: PROP_BATCH_COLS,
@@ -2184,7 +2199,7 @@ export default function Home() {
       setError('Describe the biome first, then re-roll an individual prop.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     setPropItems((prev) =>
       prev.map((p) => (p.id === id ? { ...p, generating: true } : p))
@@ -2206,6 +2221,7 @@ export default function Home() {
           artStyle: artStyle !== 'none' ? artStyle : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           model: selectedModel,
           propMode: true,
           propRole: idea?.description,
@@ -2603,6 +2619,7 @@ export default function Home() {
           sceneBrief: sceneBrief.trim() ? sceneBrief.trim() : undefined,
           apiKey: apiKey || undefined,
           walletAddress: walletAddress || undefined,
+          txSignature: payTxRef.current,
           sheetImage,
           anchorImage: anchorImage || undefined,
         }),
@@ -2718,7 +2735,7 @@ export default function Home() {
       setError('Describe the character you want — e.g. armored pixel knight.')
       return
     }
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     setError(null)
     spriteStopRef.current = false
     setSpriteGenerating(true)
@@ -3361,7 +3378,7 @@ export default function Home() {
    */
   const handleAutoExtend = async () => {
     if (loading || parallaxAutoExtending) return
-    if (!ensureCanGenerate()) return
+    if (!(await ensureCanGenerate())) return
     if (!parallaxTargetWidth) return
 
     // Resolve the right source/role/dims based on mode. In parallax mode

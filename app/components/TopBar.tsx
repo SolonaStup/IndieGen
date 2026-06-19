@@ -81,11 +81,10 @@ export function ModeToggle({
   setMode: (m: Mode) => void
 }) {
   const tabs: { value: Mode; label: string; Icon: React.FC<IconProps>; hint: string }[] = [
-    { value: 'extender', label: 'Extender', Icon: Icons.CornerFrame, hint: 'Outpaint any image' },
-    { value: 'parallax', label: 'Parallax', Icon: Icons.Mountain, hint: 'Sidescroller backgrounds' },
-    { value: 'tile', label: 'Tiles', Icon: Icons.Layers, hint: 'Seamless tile textures' },
-    { value: 'props', label: 'Props', Icon: Icons.Sprout, hint: 'Scatter decorations' },
     { value: 'sprite', label: 'Sprite', Icon: Icons.Play, hint: 'Character animations' },
+    { value: 'tile', label: 'Tiles', Icon: Icons.Layers, hint: 'Seamless tile textures' },
+    { value: 'parallax', label: 'Parallax', Icon: Icons.Mountain, hint: 'Sidescroller backgrounds' },
+    { value: 'props', label: 'Props', Icon: Icons.Sprout, hint: 'Scatter decorations' },
   ]
   return (
     <div

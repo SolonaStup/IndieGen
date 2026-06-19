@@ -6,7 +6,7 @@ import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
 import { Logo } from '@/app/components/TopBar'
 import { CreditWallet } from '@/app/components/CreditWallet'
 import { useCredits } from '@/app/components/CreditProvider'
-import { MODEL3D_USD } from '@/app/lib/credits'
+import { MODEL3D_USD, estimate3DUsd } from '@/app/lib/credits'
 import { Icons } from '@/app/components/icons'
 
 interface Model3D {
@@ -29,7 +29,7 @@ const PRICE_LABEL = `$${MODEL3D_USD.MIN}–$${MODEL3D_USD.MAX}`
 export default function Model3DStudio() {
   const { open: openWallet } = useAppKit()
   const { isConnected, address } = useAppKitAccount()
-  const { balanceUsd, refresh } = useCredits()
+  const { authed, tokenLive, pay } = useCredits()
 
   const [prompt, setPrompt] = useState('')
   const [artStyle, setArtStyle] = useState<'realistic' | 'sculpture'>('realistic')
@@ -66,19 +66,29 @@ export default function Model3DStudio() {
       openWallet()
       return
     }
-    if (balanceUsd !== null && balanceUsd < MODEL3D_USD.MIN) {
-      setError(`Need at least $${MODEL3D_USD.MIN} balance — top up to generate.`)
-      return
-    }
-
     setLoading(true)
     setModel(null)
+
+    // Pay per generation once the token is live (no-op while free).
+    let txSignature: string | null = null
+    if (tokenLive) {
+      try {
+        setError('Confirm the payment in your wallet…')
+        txSignature = await pay(estimate3DUsd(prompt.trim()))
+        setError(null)
+      } catch (e) {
+        setLoading(false)
+        setError(e instanceof Error ? e.message : 'Payment was cancelled.')
+        return
+      }
+    }
+
     startTimer()
     try {
       const res = await fetch('/api/generate-3d', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim(), artStyle, walletAddress: address }),
+        body: JSON.stringify({ prompt: prompt.trim(), artStyle, txSignature }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -86,7 +96,6 @@ export default function Model3DStudio() {
         return
       }
       setModel(data)
-      refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed.')
     } finally {
@@ -193,7 +202,9 @@ export default function Model3DStudio() {
             </button>
             <p className="mt-2 text-center text-[11px] text-[var(--text-muted)]">
               {isConnected
-                ? `Balance: $${(balanceUsd ?? 0).toFixed(2)} · priced by complexity`
+                ? authed
+                  ? 'Free during beta · priced by complexity at launch'
+                  : 'Sign in with your wallet to generate'
                 : 'Connect a wallet to generate'}
             </p>
           </div>
