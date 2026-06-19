@@ -76,6 +76,7 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
         mint: p.mint,
         treasury: p.treasury,
         amountTokens: usd / p.tokenUsd,
+        burnBps: p.burnBps ?? 0,
       })
     },
     [address, walletProvider, connection]

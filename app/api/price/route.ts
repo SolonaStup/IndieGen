@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { TOKEN, isTokenLive } from '@/app/lib/credits'
+import { BURN_BPS, TOKEN, isTokenLive } from '@/app/lib/credits'
 import { getTokenUsdPrice } from '@/app/lib/server/tokenPrice'
 
 /** GET /api/price → live $INDIEGEN price for client-side USD↔token display. */
@@ -11,6 +11,7 @@ export async function GET() {
     treasury: TOKEN.TREASURY || null,
     network: TOKEN.NETWORK,
     live: isTokenLive(),
+    burnBps: BURN_BPS, // share burned on each payment (bps)
     tokenUsd, // $ per whole token (live from DexScreener, or fallback)
   })
 }

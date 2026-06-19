@@ -67,19 +67,18 @@ export async function checkPayment(
       if (!tx || tx.meta?.err) {
         return { ok: false, status: 400, code: 'TX_NOT_FOUND', error: 'Payment transaction not found.' }
       }
-      const received = tokenDelta(tx.meta, TOKEN.MINT, TOKEN.TREASURY)
-      if (received <= 0) {
-        return { ok: false, status: 400, code: 'NO_TRANSFER', error: 'No $INDIEGEN payment to the treasury in this transaction.' }
-      }
-      const sent = -tokenDelta(tx.meta, TOKEN.MINT, wallet)
-      if (sent <= 0) {
+      // Value the payment by the wallet's TOTAL outflow (burn + treasury
+      // transfer) — the burn share never reaches the treasury, so crediting
+      // only the treasury delta would under-count what the user actually paid.
+      const spent = -tokenDelta(tx.meta, TOKEN.MINT, wallet)
+      if (spent <= 0) {
         return { ok: false, status: 403, code: 'NOT_PAYER', error: 'This payment was not sent by your wallet.' }
       }
       const price = await getTokenUsdPrice()
       if (!price) {
         return { ok: false, status: 503, code: 'PRICE', error: 'Token price unavailable, try again.' }
       }
-      p = { wallet, verifiedCents: Math.floor(received * price * 100), spentCents: 0, at: Date.now() }
+      p = { wallet, verifiedCents: Math.floor(spent * price * 100), spentCents: 0, at: Date.now() }
       payments.set(txSignature, p)
     } catch {
       return { ok: false, status: 502, code: 'VERIFY', error: 'Could not verify payment.' }

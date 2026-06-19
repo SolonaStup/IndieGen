@@ -47,6 +47,15 @@ export function isTokenLive(): boolean {
 }
 
 /**
+ * Share of each generation payment that is BURNED (basis points; 5000 = 50%).
+ * The remainder goes to the treasury. Tunable via env without a code change.
+ */
+export const BURN_BPS = Math.max(
+  0,
+  Math.min(10000, Number(process.env.NEXT_PUBLIC_BURN_BPS || '5000'))
+)
+
+/**
  * PRICING — every generation has a fixed price in USD. Balances are stored in
  * whole US cents (integer) so a prepaid balance never drifts with the token
  * price. You top up by sending $INDIEGEN (valued at the LIVE DexScreener price
