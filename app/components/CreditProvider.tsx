@@ -2,136 +2,135 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import { useAppKitConnection } from '@reown/appkit-adapter-solana/react'
 import bs58 from 'bs58'
+import { payTokens, type WalletSender } from '@/app/lib/pay'
 
-interface CreditContextValue {
+/**
+ * Wallet auth (Sign-In with Solana). No prepaid balance — generation is free
+ * until the token launches, then paid per-generation directly from the wallet
+ * (see usePayForGeneration). This provider only handles proving wallet ownership
+ * so the server can rate-limit and attribute requests.
+ */
+interface AuthContextValue {
   address?: string
   isConnected: boolean
   /** True once the wallet has proven ownership via a signed message. */
   authed: boolean
   signingIn: boolean
-  /** Raw balance in US cents. */
-  credits: number | null
-  /** Balance in dollars (credits / 100). */
-  balanceUsd: number | null
-  loading: boolean
-  /** Prompt the wallet to sign in (proves ownership → unlocks credits). */
+  /** True once the $INDIEGEN token is configured (generation becomes paid). */
+  tokenLive: boolean
   signIn: () => Promise<void>
-  /** Re-fetch the balance from the server session. */
   refresh: () => Promise<void>
-  /** Dev faucet — grants test credits (signed-in, non-prod only). */
-  buyFaucet: () => Promise<void>
+  /**
+   * Pay for a generation of `usd` value from the wallet. Returns the payment
+   * txSignature, or null when generation is still free (token not launched).
+   */
+  pay: (usd: number) => Promise<string | null>
 }
 
-const CreditContext = createContext<CreditContextValue>({
+const AuthContext = createContext<AuthContextValue>({
   isConnected: false,
   authed: false,
   signingIn: false,
-  credits: null,
-  balanceUsd: null,
-  loading: false,
+  tokenLive: false,
   signIn: async () => {},
   refresh: async () => {},
-  buyFaucet: async () => {},
+  pay: async () => null,
 })
 
-export const useCredits = () => useContext(CreditContext)
+export const useCredits = () => useContext(AuthContext)
 
 type SolanaSigner = {
   signMessage?: (message: Uint8Array) => Promise<Uint8Array | { signature: Uint8Array }>
-}
+} & Partial<WalletSender>
 
 export function CreditProvider({ children }: { children: React.ReactNode }) {
   const { address, isConnected } = useAppKitAccount()
   const { walletProvider } = useAppKitProvider<SolanaSigner>('solana')
-  const [credits, setCredits] = useState<number | null>(null)
+  const { connection } = useAppKitConnection()
   const [authed, setAuthed] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const signedFor = useRef<string | null>(null) // address we already tried to sign in
+  const [tokenLive, setTokenLive] = useState(false)
+  const signedFor = useRef<string | null>(null)
 
-  // Read balance + auth state from the session cookie.
+  useEffect(() => {
+    fetch('/api/price')
+      .then((r) => r.json())
+      .then((d) => setTokenLive(Boolean(d.live)))
+      .catch(() => setTokenLive(false))
+  }, [])
+
+  /** Pay for a generation; null when still free (token not launched). */
+  const pay = useCallback(
+    async (usd: number): Promise<string | null> => {
+      const p = await fetch('/api/price').then((r) => r.json())
+      if (!p.live || !p.mint || !p.treasury || !p.tokenUsd) return null // free
+      if (!address || !walletProvider?.sendTransaction || !connection) {
+        throw new Error('Wallet not ready — reconnect and try again.')
+      }
+      return payTokens({
+        walletProvider: walletProvider as WalletSender,
+        connection,
+        payer: address,
+        mint: p.mint,
+        treasury: p.treasury,
+        amountTokens: usd / p.tokenUsd,
+      })
+    },
+    [address, walletProvider, connection]
+  )
+
   const refresh = useCallback(async () => {
-    setLoading(true)
     try {
       const r = await fetch('/api/auth/me')
       const d = await r.json()
-      const sessionAddr: string | null = d.address ?? null
-      const ok = Boolean(sessionAddr && sessionAddr === address)
-      setAuthed(ok)
-      setCredits(ok && typeof d.credits === 'number' ? d.credits : null)
+      setAuthed(Boolean(d.address && d.address === address))
     } catch {
       /* keep last known */
-    } finally {
-      setLoading(false)
     }
   }, [address])
 
-  // Prove wallet ownership: nonce → sign → verify → session cookie.
   const signIn = useCallback(async () => {
     if (!address || !walletProvider?.signMessage) return
     setSigningIn(true)
     try {
-      const nonceRes = await fetch('/api/auth/nonce', {
+      const { issuedAt, message } = await fetch('/api/auth/nonce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address }),
-      })
-      const { issuedAt, message } = await nonceRes.json()
+      }).then((r) => r.json())
       if (!message) return
-
       const signed = await walletProvider.signMessage(new TextEncoder().encode(message))
       const sigBytes = signed instanceof Uint8Array ? signed : signed.signature
       const signature = bs58.encode(sigBytes)
-
-      const verifyRes = await fetch('/api/auth/verify', {
+      const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, issuedAt, signature }),
       })
-      if (verifyRes.ok) {
-        const d = await verifyRes.json()
-        setAuthed(true)
-        setCredits(typeof d.credits === 'number' ? d.credits : null)
-      }
+      if (res.ok) setAuthed(true)
     } catch {
-      /* user rejected or wallet error — stays unauthed, can retry */
+      /* user rejected — stays unauthed, can retry */
     } finally {
       setSigningIn(false)
     }
   }, [address, walletProvider])
 
-  const buyFaucet = useCallback(async () => {
-    if (!authed) return
-    try {
-      await fetch('/api/credits/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ faucet: true }),
-      })
-    } finally {
-      await refresh()
-    }
-  }, [authed, refresh])
-
-  // On (dis)connect: reset, check existing session, auto-prompt sign-in once.
+  // On connect: check session, auto-prompt sign-in once per address.
   useEffect(() => {
     if (!address) {
       setAuthed(false)
-      setCredits(null)
       signedFor.current = null
       return
     }
     let cancelled = false
     ;(async () => {
       await refresh()
-      if (cancelled) return
-      // auto sign-in once per address if no valid session yet
-      if (signedFor.current !== address) {
-        signedFor.current = address
-        const me = await fetch('/api/auth/me').then((r) => r.json()).catch(() => ({}))
-        if (!cancelled && me.address !== address) await signIn()
-      }
+      if (cancelled || signedFor.current === address) return
+      signedFor.current = address
+      const me = await fetch('/api/auth/me').then((r) => r.json()).catch(() => ({}))
+      if (!cancelled && me.address !== address) await signIn()
     })()
     return () => {
       cancelled = true
@@ -139,34 +138,11 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address])
 
-  // Keep balance live while authed.
-  useEffect(() => {
-    if (!authed) return
-    const id = setInterval(refresh, 5000)
-    const onFocus = () => refresh()
-    window.addEventListener('focus', onFocus)
-    return () => {
-      clearInterval(id)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [authed, refresh])
-
   return (
-    <CreditContext.Provider
-      value={{
-        address,
-        isConnected,
-        authed,
-        signingIn,
-        credits,
-        balanceUsd: credits === null ? null : credits / 100,
-        loading,
-        signIn,
-        refresh,
-        buyFaucet,
-      }}
+    <AuthContext.Provider
+      value={{ address, isConnected, authed, signingIn, tokenLive, signIn, refresh, pay }}
     >
       {children}
-    </CreditContext.Provider>
+    </AuthContext.Provider>
   )
 }

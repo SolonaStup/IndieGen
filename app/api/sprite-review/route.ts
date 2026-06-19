@@ -153,7 +153,7 @@ function parseReview(raw: string): Review | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, anim, bodyPlan, sceneBrief, apiKey, model, sheetImage, anchorImage, walletAddress } =
+    const { prompt, anim, bodyPlan, sceneBrief, apiKey, model, sheetImage, anchorImage, walletAddress, txSignature } =
       await request.json()
 
     if (typeof sheetImage !== 'string' || !sheetImage.startsWith('data:image/')) {
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const gate = await gateRequest(request, 'review')
+    const gate = await gateRequest(request, 'review', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId =
@@ -265,7 +265,7 @@ Review the attached sprite sheet${hasAnchor ? ' against the character anchor' : 
         Authorization: `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender - Sprite QA',
+        'X-Title': 'INDIEGEN - Sprite QA',
       },
       body: JSON.stringify({
         model: modelId,
@@ -287,7 +287,7 @@ Review the attached sprite sheet${hasAnchor ? ' against the character anchor' : 
     }
 
     // Review call succeeded — charge once, regardless of parse outcome below.
-    await settle(gate.address, 'review')
+    await settle(gate)
 
     const data = await response.json()
     const raw = data.choices?.[0]?.message?.content

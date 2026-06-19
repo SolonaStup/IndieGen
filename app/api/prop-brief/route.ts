@@ -98,7 +98,7 @@ function parseIdeas(raw: string): PropIdea[] {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, sceneBrief, artStyle, apiKey, model, count, existing, walletAddress } =
+    const { prompt, sceneBrief, artStyle, apiKey, model, count, existing, walletAddress, txSignature } =
       await request.json()
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const gate = await gateRequest(request, 'brief')
+    const gate = await gateRequest(request, 'brief', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId =
@@ -167,7 +167,7 @@ Propose ${n} brand-new decoration props as strict JSON.`
         Authorization: `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender - Prop Art Director',
+        'X-Title': 'INDIEGEN - Prop Art Director',
       },
       body: JSON.stringify({
         model: modelId,
@@ -209,7 +209,7 @@ Propose ${n} brand-new decoration props as strict JSON.`
       )
     }
 
-    await settle(gate.address, 'brief')
+    await settle(gate)
     return NextResponse.json({ ideas })
   } catch (error) {
     console.error('Error in prop-brief route:', error)

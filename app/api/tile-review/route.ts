@@ -52,7 +52,7 @@ function parseReview(raw: string): Review | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, sceneBrief, apiKey, model, previewImage, sheetImage, walletAddress } =
+    const { prompt, sceneBrief, apiKey, model, previewImage, sheetImage, walletAddress, txSignature } =
       await request.json()
 
     if (
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const gate = await gateRequest(request, 'review')
+    const gate = await gateRequest(request, 'review', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId =
@@ -142,7 +142,7 @@ Review the attached platform preview${
         Authorization: `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender - Tile QA',
+        'X-Title': 'INDIEGEN - Tile QA',
       },
       body: JSON.stringify({
         model: modelId,
@@ -165,7 +165,7 @@ Review the attached platform preview${
     }
 
     // Review call succeeded — charge once, regardless of parse outcome below.
-    await settle(gate.address, 'review')
+    await settle(gate)
 
     const data = await response.json()
     const raw = data.choices?.[0]?.message?.content

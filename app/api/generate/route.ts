@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       artStyle,
       apiKey,
       walletAddress,
+      txSignature,
       model,
       layerRole,
       sceneBrief,
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Pre-flight credit check (deducted only on success, see settle() below).
-    const gate = await gateRequest(request, 'image')
+    const gate = await gateRequest(request, 'image', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId = (typeof model === 'string' && model.trim()) ? model.trim() : DEFAULT_MODEL
@@ -1215,7 +1216,7 @@ ${
         'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender - Generator',
+        'X-Title': 'INDIEGEN - Generator',
       },
       body: JSON.stringify({
         model: modelId,
@@ -1354,7 +1355,7 @@ ${
     }
 
     // Generation succeeded — now deduct the credit.
-    await settle(gate.address, 'image')
+    await settle(gate)
     return NextResponse.json({ imageUrl, names })
   } catch (error) {
     console.error('Error in generate route:', error)

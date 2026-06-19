@@ -20,7 +20,7 @@ const appUrl =
 
 createAppKit({
   adapters: [solanaAdapter],
-  networks: [solanaDevnet, solana],
+  networks: [solana, solanaDevnet],
   projectId: REOWN_PROJECT_ID,
   metadata: {
     name: 'INDIEGEN',

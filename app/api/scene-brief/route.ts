@@ -25,7 +25,7 @@ const artStyleDescriptions: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { anchorPrompt, artStyle, apiKey, model, walletAddress } = await request.json()
+    const { anchorPrompt, artStyle, apiKey, model, walletAddress, txSignature } = await request.json()
 
     if (!anchorPrompt || typeof anchorPrompt !== 'string' || !anchorPrompt.trim()) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const gate = await gateRequest(request, 'brief')
+    const gate = await gateRequest(request, 'brief', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId =
@@ -77,7 +77,7 @@ Write the shared scene brief for all parallax layers.`
         Authorization: `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender - Scene Brief',
+        'X-Title': 'INDIEGEN - Scene Brief',
       },
       body: JSON.stringify({
         model: modelId,
@@ -119,7 +119,7 @@ Write the shared scene brief for all parallax layers.`
       )
     }
 
-    await settle(gate.address, 'brief')
+    await settle(gate)
     return NextResponse.json({ sceneBrief })
   } catch (error) {
     console.error('Error in scene-brief route:', error)

@@ -8,6 +8,8 @@ export async function GET() {
   return NextResponse.json({
     symbol: 'INDIEGEN',
     mint: TOKEN.MINT || null,
+    treasury: TOKEN.TREASURY || null,
+    network: TOKEN.NETWORK,
     live: isTokenLive(),
     tokenUsd, // $ per whole token (live from DexScreener, or fallback)
   })

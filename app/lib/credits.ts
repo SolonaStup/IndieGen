@@ -90,7 +90,10 @@ export const FAUCET_AMOUNT = usdToCents(5)
  * A simple prompt lands near $2, a rich/rigged/multi-material one near $15.
  * (3D studio ships as a later update; this is the pricing it will use.)
  */
-export const MODEL3D_USD = { MIN: 2, MAX: 15 } as const
+export const MODEL3D_USD = {
+  MIN: Number(process.env.NEXT_PUBLIC_MODEL3D_USD_MIN || '2'),
+  MAX: Number(process.env.NEXT_PUBLIC_MODEL3D_USD_MAX || '15'),
+} as const
 
 const COMPLEXITY_HINTS =
   /\b(rig|rigged|riggable|animat\w*|texture[ds]?|pbr|normal\s*map|detailed|intricate|ornate|multiple|several|scene|character|creature|armou?r|mechanical|robot|realistic|hi[- ]?poly|high[- ]?poly|sculpt\w*)\b/gi

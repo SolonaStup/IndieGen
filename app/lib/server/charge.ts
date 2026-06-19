@@ -1,28 +1,34 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAccount, spend } from '@/app/lib/server/creditStore'
 import { getAuthedAddress } from '@/app/lib/server/auth'
 import { rateLimit } from '@/app/lib/server/ratelimit'
-import { actionCostCents, centsToUsd, CreditAction } from '@/app/lib/credits'
+import { actionCostCents, centsToUsd, CreditAction, isTokenLive } from '@/app/lib/credits'
+import { checkPayment, spendPayment } from '@/app/lib/server/payments'
+
+export interface Gate {
+  ok: true
+  address: string
+  /** cents this generation costs */
+  cost: number
+  /** payment that funds it (null before the token launches → free) */
+  txSignature: string | null
+}
 
 /**
- * Auth + affordability gate. Derives the wallet from the SIGNED SESSION COOKIE
- * (never the request body), so a caller can only ever spend the balance of a
- * wallet they proved they own. Balances and costs are in US cents.
+ * Direct pay-per-generation gate. No prepaid balance:
+ *   - before the token launches (no mint) → generation is FREE (auth + rate-limit)
+ *   - after launch → the request must carry a `txSignature` of a wallet payment
+ *     to the treasury that covers this generation's USD price
  *
- *   const gate = await gateRequest(request, 'image')      // flat USD price
- *   const gate = await gateRequest(request, 'model3d', usdToCents(priceUsd))  // dynamic
+ *   const gate = await gateRequest(request, 'image', { txSignature })
  *   if ('error' in gate) return gate.error
- *   ... do the generation ...
- *   await settle(gate.address, 'image', gate.cost)        // only after success
- *
- * `gate.cost` is the cents to charge — pass it back to settle so dynamic and
- * flat pricing stay consistent.
+ *   ... generate ...
+ *   await settle(gate)   // spends the payment, only on success
  */
 export async function gateRequest(
   request: NextRequest,
   action: CreditAction,
-  overrideCents?: number
-): Promise<{ error: NextResponse } | { ok: true; address: string; cost: number }> {
+  opts: { txSignature?: unknown; overrideCents?: number } = {}
+): Promise<{ error: NextResponse } | Gate> {
   const address = getAuthedAddress(request)
   if (!address) {
     return {
@@ -43,29 +49,36 @@ export async function gateRequest(
     }
   }
 
-  const cost = overrideCents ?? actionCostCents(action)
-  const acc = await getAccount(address)
-  if (acc.credits < cost) {
+  const cost = opts.overrideCents ?? actionCostCents(action)
+
+  // Free until the token is launched.
+  if (!isTokenLive()) {
+    return { ok: true, address, cost, txSignature: null }
+  }
+
+  // Paid: require a wallet payment covering this generation.
+  const txSignature = typeof opts.txSignature === 'string' ? opts.txSignature : ''
+  if (!txSignature) {
     return {
       error: NextResponse.json(
-        {
-          error: 'Not enough balance — top up to continue.',
-          code: 'INSUFFICIENT_CREDITS',
-          balanceUsd: centsToUsd(acc.credits),
-          costUsd: centsToUsd(cost),
-        },
+        { error: 'Payment required.', code: 'PAYMENT_REQUIRED', costUsd: centsToUsd(cost) },
         { status: 402 }
       ),
     }
   }
-  return { ok: true, address, cost }
+  const pay = await checkPayment(txSignature, address, cost)
+  if (!pay.ok) {
+    return {
+      error: NextResponse.json(
+        { error: pay.error, code: pay.code, costUsd: centsToUsd(cost) },
+        { status: pay.status ?? 402 }
+      ),
+    }
+  }
+  return { ok: true, address, cost, txSignature }
 }
 
-/** Deduct `cents` (defaults to the action's flat price). Call only on success. */
-export async function settle(
-  walletAddress: string,
-  action: CreditAction,
-  overrideCents?: number
-): Promise<void> {
-  await spend(walletAddress, overrideCents ?? actionCostCents(action), action)
+/** Spend the payment for a successful generation. No-op while generation is free. */
+export async function settle(gate: Gate): Promise<void> {
+  if (gate.txSignature) spendPayment(gate.txSignature, gate.cost)
 }

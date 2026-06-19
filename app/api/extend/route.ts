@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       layerRole,
       sceneBrief,
       walletAddress,
+      txSignature,
     } = await request.json()
 
     if (!expandedCanvas || !direction || !extensionAmount) {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Pre-flight credit check (deducted only on success, see settle() below).
-    const gate = await gateRequest(request, 'extend')
+    const gate = await gateRequest(request, 'extend', { txSignature })
     if ('error' in gate) return gate.error
 
     const modelId = (typeof model === 'string' && model.trim()) ? model.trim() : DEFAULT_MODEL
@@ -297,7 +298,7 @@ KEY INSTRUCTIONS:
         'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': request.headers.get('referer') || 'http://localhost:3000',
-        'X-Title': 'AI Image Extender',
+        'X-Title': 'INDIEGEN',
       },
       body: JSON.stringify({
         model: modelId,
@@ -360,7 +361,7 @@ KEY INSTRUCTIONS:
     }
 
     // Outpaint succeeded — now deduct the credit.
-    await settle(gate.address, 'extend')
+    await settle(gate)
     return NextResponse.json({ imageUrl, chunkInfo })
   } catch (error) {
     console.error('Error in extend route:', error)

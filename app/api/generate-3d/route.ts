@@ -9,12 +9,12 @@ export const maxDuration = 300
 
 /**
  * POST /api/generate-3d
- * Body: { prompt, walletAddress, artStyle?, topology?, targetPolycount? }
- * Credit-metered (model3d); deducted only on success.
+ * Body: { prompt, txSignature?, artStyle?, topology?, targetPolycount? }
+ * Pay-per-generation (model3d); the payment is spent only on success.
  */
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, walletAddress, artStyle, topology, targetPolycount } =
+    const { prompt, txSignature, artStyle, topology, targetPolycount } =
       await request.json().catch(() => ({}))
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Price scales with prompt complexity ($2–$15); charged exactly.
     const priceUsd = estimate3DUsd(prompt)
-    const gate = await gateRequest(request, 'model3d', usdToCents(priceUsd))
+    const gate = await gateRequest(request, 'model3d', { overrideCents: usdToCents(priceUsd), txSignature })
     if ('error' in gate) return gate.error
 
     const result = await generate3D({
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Success — deduct the exact USD-priced amount.
-    await settle(gate.address, 'model3d', gate.cost)
+    await settle(gate)
 
     const tokenUsd = await getTokenUsdPrice()
     const priceTokens = tokenUsd ? usdToTokens(priceUsd, tokenUsd) : null
