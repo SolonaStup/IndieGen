@@ -63,9 +63,20 @@ export async function checkPayment(
   if (!p) {
     try {
       const conn = new Connection(RPC, 'confirmed')
-      const tx = await conn.getParsedTransaction(txSignature, { maxSupportedTransactionVersion: 0 })
-      if (!tx || tx.meta?.err) {
-        return { ok: false, status: 400, code: 'TX_NOT_FOUND', error: 'Payment transaction not found.' }
+      // Poll: the payment may not have propagated to this RPC node yet.
+      let tx = null
+      for (let i = 0; i < 8; i++) {
+        tx = await conn
+          .getParsedTransaction(txSignature, { maxSupportedTransactionVersion: 0 })
+          .catch(() => null)
+        if (tx) break
+        await new Promise((r) => setTimeout(r, 2500))
+      }
+      if (!tx) {
+        return { ok: false, status: 425, code: 'TX_PENDING', error: 'Payment not seen yet — wait a few seconds and click Generate again.' }
+      }
+      if (tx.meta?.err) {
+        return { ok: false, status: 400, code: 'TX_FAILED', error: 'Payment transaction failed on-chain.' }
       }
       // Value the payment by the wallet's TOTAL outflow (burn + treasury
       // transfer) — the burn share never reaches the treasury, so crediting

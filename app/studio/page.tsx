@@ -3865,6 +3865,17 @@ export default function Home() {
     isParallax &&
     (hasAnchorLayer || !!sceneBrief.trim() || sceneBriefLoading)
 
+  // Single entry point: the one bottom "Generate" button routes to the active
+  // mode's primary action (which takes the payment via ensureCanGenerate).
+  const handlePrimaryGenerate = () => {
+    if (loading) return
+    if (isSprite) return void handleGenerateSpriteSheet()
+    if (isTile) return void handleGenerateTileSet()
+    if (isProps) return void handleAddPropBatch()
+    if (isParallax) return void openGenerateModal()
+    return void handleGenerateImage()
+  }
+
   return (
     <main className="relative flex min-h-screen flex-col">
       <TopBar
@@ -4047,6 +4058,24 @@ export default function Home() {
             sceneBriefLoading={sceneBriefLoading}
           />
         )}
+
+      {/* Single primary Generate button — the only thing that generates + pays */}
+      {(isSprite || isTile || isProps || isParallax) && !isResult && (
+        <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+          <button
+            onClick={handlePrimaryGenerate}
+            disabled={loading}
+            className="btn btn-primary px-12 py-4 text-[16px] font-bold"
+            style={{ boxShadow: '0 8px 30px rgba(245,165,36,0.35)' }}
+          >
+            {loading
+              ? 'Generating…'
+              : tokenLive
+                ? 'Generate  ·  pay in $INDIEGEN'
+                : 'Generate'}
+          </button>
+        </div>
+      )}
 
       {/* Hidden file input */}
       <input

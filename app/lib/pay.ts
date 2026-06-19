@@ -66,7 +66,8 @@ export async function payTokens(opts: {
   tx.feePayer = payer
   tx.recentBlockhash = (await opts.connection.getLatestBlockhash()).blockhash
 
-  const signature = await opts.walletProvider.sendTransaction(tx, opts.connection)
-  await opts.connection.confirmTransaction(signature, 'confirmed')
-  return signature
+  // Send and return the signature immediately. The server waits for the
+  // transaction to propagate (it polls), so we don't block the UI on
+  // confirmation here (the public RPC's confirm can be slow/flaky).
+  return opts.walletProvider.sendTransaction(tx, opts.connection)
 }
