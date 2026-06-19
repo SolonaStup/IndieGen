@@ -31,12 +31,14 @@ export function TopBar({
   setMode,
   onNewImage,
   onShowSettings,
+  show3D = false,
 }: {
   hasImage: boolean
   mode: Mode
   setMode: (m: Mode) => void
   onNewImage: () => void
   onShowSettings: () => void
+  show3D?: boolean
 }) {
   return (
     <header
@@ -44,7 +46,7 @@ export function TopBar({
       style={{ borderColor: 'var(--border)' }}
     >
       <Logo />
-      <ModeToggle mode={mode} setMode={setMode} />
+      <ModeToggle mode={mode} setMode={setMode} show3D={show3D} />
       <div className="flex items-center gap-1.5">
         {hasImage && (
           <button onClick={onNewImage} className="btn btn-ghost">
@@ -76,9 +78,12 @@ export function TopBar({
 export function ModeToggle({
   mode,
   setMode,
+  show3D = false,
 }: {
   mode: Mode
   setMode: (m: Mode) => void
+  /** Reveal the 3D pill (only once Meshy is configured on the server). */
+  show3D?: boolean
 }) {
   const tabs: { value: Mode; label: string; Icon: React.FC<IconProps>; hint: string }[] = [
     { value: 'sprite', label: 'Sprite', Icon: Icons.Play, hint: 'Character animations' },
@@ -122,7 +127,17 @@ export function ModeToggle({
           </button>
         )
       })}
-      {/* 3D studio ships as a later update — route + code stay, tab hidden. */}
+      {/* 3D ships as a later update — revealed when Meshy is configured. */}
+      {show3D && (
+        <a
+          href="/studio/3d"
+          title="Generate 3D models"
+          className="relative flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text)]"
+        >
+          <Icons.Cube size={13} />
+          3D
+        </a>
+      )}
     </div>
   )
 }

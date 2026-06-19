@@ -205,11 +205,20 @@ export default function Home() {
   // per-generation directly from the wallet once the token launches.
   const { open: openWallet } = useAppKit()
   const { address: walletAddress, isConnected } = useAppKitAccount()
-  const { authed, tokenLive, pay } = useCredits()
+  const { authed, tokenLive, paySymbol, pay } = useCredits()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   /** txSignature of the payment funding the current generation action. */
   const payTxRef = useRef<string | null>(null)
+  /** Reveal the 3D tab — true once Meshy is configured on the server. */
+  const [show3D, setShow3D] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((cfg) => setShow3D(Boolean(cfg?.threeDEnabled)))
+      .catch(() => setShow3D(false))
+  }, [])
 
   // Hydrate from localStorage on mount, and decide whether to show the modal.
   useEffect(() => {
@@ -3893,6 +3902,7 @@ export default function Home() {
         }
         mode={mode}
         setMode={setMode}
+        show3D={show3D}
         onNewImage={handleNewImage}
         onShowSettings={() => setShowSettings(true)}
       />
@@ -4072,7 +4082,7 @@ export default function Home() {
             {loading
               ? 'Generating…'
               : tokenLive
-                ? 'Generate  ·  pay in $INDIEGEN'
+                ? `Generate  ·  pay in ${paySymbol === 'SOL' ? 'SOL' : '$' + paySymbol}`
                 : 'Generate'}
           </button>
         </div>

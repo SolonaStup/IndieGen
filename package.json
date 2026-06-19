@@ -1,37 +1,33 @@
 {
-  "name": "image-extender",
+  "name": "indiegen",
   "version": "1.0.0",
   "private": true,
-  "description": "A web app that extends images in any direction using AI (Gemini via OpenRouter), with Poisson-blended seamless outpainting and a best-of-N variant picker.",
+  "description": "AI game asset studio on Solana — generate sprites, animations, tilesets, parallax backgrounds and low-poly 3D models, export-ready for Unity, Godot and Unreal.",
   "keywords": [
     "ai",
-    "image-extender",
-    "outpainting",
-    "openrouter",
-    "gemini",
-    "nano-banana",
-    "poisson-blending",
+    "game-assets",
+    "sprites",
+    "tilesets",
+    "solana",
     "nextjs",
     "tailwindcss"
   ],
-  "author": "boona13",
+  "author": "KURTGUETTO",
   "license": "MIT",
-  "homepage": "https://github.com/boona13/image-extender#readme",
+  "homepage": "https://github.com/KURTGUETTO/IndieGen#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/boona13/image-extender.git"
+    "url": "https://github.com/KURTGUETTO/IndieGen.git"
   },
   "bugs": {
-    "url": "https://github.com/boona13/image-extender/issues"
+    "url": "https://github.com/KURTGUETTO/IndieGen/issues"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "set-token": "node scripts/set-token.mjs",
-    "video": "remotion studio remotion/index.ts",
-    "video:render": "remotion render remotion/index.ts IndiegenPromo out/indiegen-promo.mp4"
+    "set-token": "node scripts/set-token.mjs"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.21",
@@ -46,14 +42,11 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@remotion/cli": "^4.0.481",
-    "@remotion/google-fonts": "^4.0.481",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
-    "remotion": "^4.0.481",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.2.2"
   }

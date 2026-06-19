@@ -14,6 +14,14 @@ export const maxDuration = 300
  */
 export async function POST(request: NextRequest) {
   try {
+    // 3D is gated until Meshy is configured (the post-launch update).
+    if (!isMeshyConfigured()) {
+      return NextResponse.json(
+        { error: '3D generation is coming soon.', code: 'THREE_D_OFF' },
+        { status: 403 }
+      )
+    }
+
     const { prompt, txSignature, artStyle, topology, targetPolycount } =
       await request.json().catch(() => ({}))
 

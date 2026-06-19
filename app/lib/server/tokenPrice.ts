@@ -3,7 +3,7 @@
  * DexScreener by mint and caches it briefly. Falls back to the static
  * TOKEN.USD_PRICE before the token has on-chain liquidity.
  */
-import { TOKEN } from '@/app/lib/credits'
+import { PAY_IN_SOL, TOKEN, WSOL_MINT } from '@/app/lib/credits'
 
 let cache: { price: number; at: number } | null = null
 const TTL_MS = 45_000
@@ -13,15 +13,17 @@ interface DexPair {
   liquidity?: { usd?: number }
 }
 
-/** Returns live $/token, or a fallback, or null if unknown. */
+/** Returns live $ per payment unit (SOL in SOL-mode, else the token). */
 export async function getTokenUsdPrice(): Promise<number | null> {
-  if (!TOKEN.MINT) return TOKEN.USD_PRICE || null
+  // In SOL mode the payment unit is native SOL → price it from wrapped SOL.
+  const mint = PAY_IN_SOL ? WSOL_MINT : TOKEN.MINT
+  if (!mint) return TOKEN.USD_PRICE || null
   const now = Date.now()
   if (cache && now - cache.at < TTL_MS) return cache.price
 
   try {
     const res = await fetch(
-      `https://api.dexscreener.com/latest/dex/tokens/${TOKEN.MINT}`,
+      `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
       { signal: AbortSignal.timeout(8000) }
     )
     if (!res.ok) return cache?.price ?? TOKEN.USD_PRICE ?? null

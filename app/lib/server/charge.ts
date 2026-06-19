@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthedAddress } from '@/app/lib/server/auth'
 import { rateLimit } from '@/app/lib/server/ratelimit'
-import { actionCostCents, centsToUsd, CreditAction, isTokenLive } from '@/app/lib/credits'
+import { actionCostCents, centsToUsd, CreditAction, isPaymentLive } from '@/app/lib/credits'
 import { checkPayment, spendPayment } from '@/app/lib/server/payments'
 
 export interface Gate {
@@ -52,7 +52,7 @@ export async function gateRequest(
   const cost = opts.overrideCents ?? actionCostCents(action)
 
   // Free until the token is launched.
-  if (!isTokenLive()) {
+  if (!isPaymentLive()) {
     return { ok: true, address, cost, txSignature: null }
   }
 

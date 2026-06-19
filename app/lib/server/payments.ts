@@ -8,8 +8,8 @@
  * Payment state is in-memory (payments are used immediately after sending), keyed
  * by txSignature. Verification reads the transfer to the treasury via RPC.
  */
-import { Connection } from '@solana/web3.js'
-import { TOKEN } from '@/app/lib/credits'
+import { Connection, LAMPORTS_PER_SOL } from '@solana/web3.js'
+import { PAY_IN_SOL, TOKEN } from '@/app/lib/credits'
 import { getTokenUsdPrice } from '@/app/lib/server/tokenPrice'
 
 const WINDOW_MS = 15 * 60 * 1000
@@ -40,6 +40,20 @@ function tokenDelta(meta: Meta, mint: string, owner: string): number {
     (arr as Bal[] | undefined)?.find((x) => x.mint === mint && x.owner === owner)?.uiTokenAmount
       .uiAmount ?? 0
   return amt(meta.postTokenBalances) - amt(meta.preTokenBalances)
+}
+
+/** Lamports the `owner` account received across the transaction. */
+function solReceived(
+  tx: {
+    transaction: { message: { accountKeys: { pubkey: { toBase58(): string } }[] } }
+    meta: { preBalances?: number[] | null; postBalances?: number[] | null } | null
+  },
+  owner: string
+): number {
+  const keys = tx.transaction?.message?.accountKeys ?? []
+  const idx = keys.findIndex((k) => k.pubkey.toBase58() === owner)
+  if (idx < 0 || !tx.meta) return 0
+  return (tx.meta.postBalances?.[idx] ?? 0) - (tx.meta.preBalances?.[idx] ?? 0)
 }
 
 export interface PayResult {
@@ -78,18 +92,29 @@ export async function checkPayment(
       if (tx.meta?.err) {
         return { ok: false, status: 400, code: 'TX_FAILED', error: 'Payment transaction failed on-chain.' }
       }
-      // Value the payment by the wallet's TOTAL outflow (burn + treasury
-      // transfer) — the burn share never reaches the treasury, so crediting
-      // only the treasury delta would under-count what the user actually paid.
-      const spent = -tokenDelta(tx.meta, TOKEN.MINT, wallet)
-      if (spent <= 0) {
-        return { ok: false, status: 403, code: 'NOT_PAYER', error: 'This payment was not sent by your wallet.' }
-      }
       const price = await getTokenUsdPrice()
       if (!price) {
-        return { ok: false, status: 503, code: 'PRICE', error: 'Token price unavailable, try again.' }
+        return { ok: false, status: 503, code: 'PRICE', error: 'Price unavailable, try again.' }
       }
-      p = { wallet, verifiedCents: Math.floor(spent * price * 100), spentCents: 0, at: Date.now() }
+
+      // How many payment units this transaction is worth.
+      let units: number
+      if (PAY_IN_SOL) {
+        // Native SOL: value by the lamports the treasury received.
+        const lamports = solReceived(tx, TOKEN.TREASURY)
+        if (lamports <= 0) {
+          return { ok: false, status: 400, code: 'NO_TRANSFER', error: 'No SOL payment to the treasury in this transaction.' }
+        }
+        units = lamports / LAMPORTS_PER_SOL
+      } else {
+        // SPL token: value by the wallet's total outflow (burn + transfer).
+        units = -tokenDelta(tx.meta, TOKEN.MINT, wallet)
+        if (units <= 0) {
+          return { ok: false, status: 403, code: 'NOT_PAYER', error: 'This payment was not sent by your wallet.' }
+        }
+      }
+
+      p = { wallet, verifiedCents: Math.floor(units * price * 100), spentCents: 0, at: Date.now() }
       payments.set(txSignature, p)
     } catch {
       return { ok: false, status: 502, code: 'VERIFY', error: 'Could not verify payment.' }

@@ -18,8 +18,10 @@ interface AuthContextValue {
   /** True once the wallet has proven ownership via a signed message. */
   authed: boolean
   signingIn: boolean
-  /** True once the $INDIEGEN token is configured (generation becomes paid). */
+  /** True once payment is configured (generation becomes paid). */
   tokenLive: boolean
+  /** Payment unit symbol — 'SOL' or 'INDIEGEN'. */
+  paySymbol: string
   signIn: () => Promise<void>
   refresh: () => Promise<void>
   /**
@@ -34,6 +36,7 @@ const AuthContext = createContext<AuthContextValue>({
   authed: false,
   signingIn: false,
   tokenLive: false,
+  paySymbol: 'INDIEGEN',
   signIn: async () => {},
   refresh: async () => {},
   pay: async () => null,
@@ -52,12 +55,16 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
   const [tokenLive, setTokenLive] = useState(false)
+  const [paySymbol, setPaySymbol] = useState('INDIEGEN')
   const signedFor = useRef<string | null>(null)
 
   useEffect(() => {
     fetch('/api/price')
       .then((r) => r.json())
-      .then((d) => setTokenLive(Boolean(d.live)))
+      .then((d) => {
+        setTokenLive(Boolean(d.live))
+        if (d.symbol) setPaySymbol(d.symbol)
+      })
       .catch(() => setTokenLive(false))
   }, [])
 
@@ -65,7 +72,8 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
   const pay = useCallback(
     async (usd: number): Promise<string | null> => {
       const p = await fetch('/api/price').then((r) => r.json())
-      if (!p.live || !p.mint || !p.treasury || !p.tokenUsd) return null // free
+      if (!p.live || !p.treasury || !p.tokenUsd) return null // free
+      if (!p.payInSol && !p.mint) return null
       if (!address || !walletProvider?.sendTransaction || !connection) {
         throw new Error('Wallet not ready — reconnect and try again.')
       }
@@ -73,10 +81,11 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
         walletProvider: walletProvider as WalletSender,
         connection,
         payer: address,
-        mint: p.mint,
+        mint: p.mint ?? '',
         treasury: p.treasury,
         amountTokens: usd / p.tokenUsd,
         burnBps: p.burnBps ?? 0,
+        payInSol: Boolean(p.payInSol),
       })
     },
     [address, walletProvider, connection]
@@ -141,7 +150,7 @@ export function CreditProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ address, isConnected, authed, signingIn, tokenLive, signIn, refresh, pay }}
+      value={{ address, isConnected, authed, signingIn, tokenLive, paySymbol, signIn, refresh, pay }}
     >
       {children}
     </AuthContext.Provider>

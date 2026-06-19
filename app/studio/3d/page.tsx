@@ -100,6 +100,22 @@ export default function Model3DStudio() {
     }
   }
 
+  // Hidden until Meshy is configured (the post-launch 3D update).
+  if (live === false) {
+    return (
+      <main className="flex h-screen flex-col items-center justify-center px-6 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="" className="lp-logo-float mb-6 h-20 w-20 object-contain opacity-80" />
+        <h1 className="text-3xl font-semibold tracking-tight">3D Studio — coming soon</h1>
+        <p className="mt-3 max-w-md text-[15px] text-[var(--text-secondary)]">
+          Low-poly, textured, rigged 3D models — text to GLB / FBX / OBJ. Shipping
+          as an update shortly after launch.
+        </p>
+        <a href="/studio" className="btn btn-primary mt-8">← Back to studio</a>
+      </main>
+    )
+  }
+
   return (
     <main className="flex h-screen flex-col">
       <Script
@@ -122,14 +138,6 @@ export default function Model3DStudio() {
         </div>
         <CreditWallet />
       </header>
-
-      {/* mock-mode banner */}
-      {live === false && (
-        <div className="flex items-center justify-center gap-2 border-b border-[var(--accent-border)] bg-[var(--accent-bg)] py-2 text-[12px] text-[var(--accent)]">
-          <Icons.Sparkle size={13} />
-          Mock mode — showing sample models. Add <code className="font-mono">MESHY_API_KEY</code> to .env.local for real generation.
-        </div>
-      )}
 
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_1fr]">
         {/* left: controls */}

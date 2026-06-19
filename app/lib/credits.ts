@@ -47,6 +47,21 @@ export function isTokenLive(): boolean {
 }
 
 /**
+ * Pay in native SOL instead of the SPL token. Useful for demos / a simpler
+ * payment rail (no burn — SOL just goes to the treasury). Set
+ * NEXT_PUBLIC_PAY_IN_SOL=true to enable.
+ */
+export const PAY_IN_SOL = process.env.NEXT_PUBLIC_PAY_IN_SOL === 'true'
+
+/** Wrapped-SOL mint — used to read the live SOL/USD price. */
+export const WSOL_MINT = 'So11111111111111111111111111111111111111112'
+
+/** Whether paid generation is active (either SOL mode or the SPL token). */
+export function isPaymentLive(): boolean {
+  return Boolean(TOKEN.TREASURY) && (PAY_IN_SOL || Boolean(TOKEN.MINT))
+}
+
+/**
  * Share of each generation payment that is BURNED (basis points; 5000 = 50%).
  * The remainder goes to the treasury. Tunable via env without a code change.
  */

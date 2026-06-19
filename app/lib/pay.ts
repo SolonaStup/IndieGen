@@ -1,6 +1,13 @@
 'use client'
 
-import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js'
+import {
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createBurnCheckedInstruction,
@@ -28,10 +35,25 @@ export async function payTokens(opts: {
   amountTokens: number
   /** Basis points of the payment to burn (rest goes to treasury). */
   burnBps?: number
+  /** Pay in native SOL (System transfer) instead of the SPL token. */
+  payInSol?: boolean
 }): Promise<string> {
   const payer = new PublicKey(opts.payer)
-  const mint = new PublicKey(opts.mint)
   const treasury = new PublicKey(opts.treasury)
+
+  // ── Native SOL payment (no burn — straight to treasury) ──────────────────
+  if (opts.payInSol) {
+    const lamports = Math.round(opts.amountTokens * LAMPORTS_PER_SOL)
+    if (lamports <= 0) throw new Error('Payment amount rounds to zero.')
+    const solTx = new Transaction().add(
+      SystemProgram.transfer({ fromPubkey: payer, toPubkey: treasury, lamports })
+    )
+    solTx.feePayer = payer
+    solTx.recentBlockhash = (await opts.connection.getLatestBlockhash()).blockhash
+    return opts.walletProvider.sendTransaction(solTx, opts.connection)
+  }
+
+  const mint = new PublicKey(opts.mint)
   const burnBps = Math.max(0, Math.min(10000, opts.burnBps ?? 0))
 
   // mint account → decimals + owning token program

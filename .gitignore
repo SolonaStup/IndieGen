@@ -52,3 +52,11 @@ next-env.d.ts
 
 dev.log
 *.tgz
+
+# 3D launch package (contains Meshy API key)
+updates/
+
+# Internal: promo video (Remotion) + marketing posts — not in public repo
+/remotion/
+/remotion.config.ts
+docs/twitter.md

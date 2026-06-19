@@ -20,7 +20,7 @@ SSH=(ssh -i "$KEY" -o BatchMode=yes -o StrictHostKeyChecking=no)
 cd "$(dirname "$0")/.."
 
 echo "→ packing source…"
-tar --exclude='./node_modules' --exclude='./.next' --exclude='./.git' \
+tar --exclude='./node_modules' --exclude='./updates' --exclude='./remotion' --exclude='./remotion.config.ts' --exclude='./.next' --exclude='./.git' \
     --exclude='./out' --exclude='./.data' --exclude='./dev.log' \
     --exclude='./.env.local' -czf /tmp/ig-deploy.tgz .
 
@@ -32,6 +32,7 @@ echo "→ extract + install + build + restart (~2-3 min)…"
 "${SSH[@]}" "$HOST" "set -e
   cd '$APP'
   tar -xzf /root/ig-deploy.tgz
+  rm -rf remotion remotion.config.ts
   npm install --no-audit --no-fund --silent
   npm run build
   pm2 restart '$PM2'
